@@ -25,6 +25,9 @@ namespace askaLib.Line.Notify
             _lineNotifySetting = lineNotifySetting;
         }
 
+        /// <summary>
+        /// Line OAuth2 認證 URL
+        /// </summary>
         public string GetAuthorizationRedirectUrl()
         {
             var URL = "https://notify-bot.line.me/oauth/authorize?";
@@ -36,7 +39,24 @@ namespace askaLib.Line.Notify
             return URL;
         }
 
-        public async Task<string> GetUserTokenAsync(string code)
+        /// <summary>
+        /// 通過 OAuth2 認證後取得使用者資訊；包含 access token、user name
+        /// </summary>
+        /// <param name="code">通過認證後提供的 auth code</param>
+        public async Task<UserProfile> GetUserProfile(string code)
+        {
+            UserProfile profile = new UserProfile();
+            profile.Token = await GetUserTokenAsync(code);
+            profile.Name = await GetUserNameAsync(profile.Token);
+            return profile;
+        }
+
+        /// <summary>
+        /// 通過 OAuth2 認證後取得使用者 access token
+        /// </summary>
+        /// <param name="code">通過認證後提供的 code</param>
+        /// <returns>access token</returns>
+        private async Task<string> GetUserTokenAsync(string code)
         {
             if (string.IsNullOrEmpty(code)) return null;
 
@@ -59,7 +79,11 @@ namespace askaLib.Line.Notify
             return JsonConvert.DeserializeObject<JObject>(data)?["access_token"]?.ToString();
         }
 
-        public async Task<string> GetUserNameAsync(string token)
+        /// <summary>
+        /// 根據 user access token 取得使用者名稱
+        /// </summary>
+        /// <param name="token">user access token</param>
+        private async Task<string> GetUserNameAsync(string token)
         {
             if (string.IsNullOrEmpty(token)) return null;
 
@@ -73,6 +97,11 @@ namespace askaLib.Line.Notify
             return JsonConvert.DeserializeObject<JObject>(data)?["target"]?.ToString();
         }
 
+        /// <summary>
+        /// 傳送純文字訊息給使用者
+        /// </summary>
+        /// <param name="token">user access token</param>
+        /// <param name="message">欲傳送的文字內容</param>
         public async Task SendTextAsync(string token, string message)
         {
             HttpClient client = _httpClientFactory.CreateClient();
@@ -88,10 +117,29 @@ namespace askaLib.Line.Notify
             if (!response.IsSuccessStatusCode)
             {
                 string responseContent = await response.Content.ReadAsStringAsync();
-                throw new Exception(responseContent);
+                throw new Exception($"error: {responseContent}, token: {token}");
             }
         }
 
+        /// <summary>
+        /// 集體送發訊息
+        /// </summary>
+        /// <param name="tokens">所有使用者的 access token</param>
+        /// <param name="message">欲傳送的訊息內容</param>
+        public async Task SendTextAsync(IEnumerable<string> tokens, string message)
+        {
+            List<Task> tasks = new List<Task>();
+            foreach(var t in tokens)
+            {
+                tasks.Add(SendTextAsync(t, message));
+            }
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// 解除綁定 (access token 將失效)
+        /// </summary>
+        /// <param name="token">user access token</param>
         public async Task RevokeAsync(string token)
         {
             if (string.IsNullOrEmpty(token)) return;
@@ -108,6 +156,20 @@ namespace askaLib.Line.Notify
 
             var responseContent = await response.Content.ReadAsStringAsync();
             throw new Exception(responseContent);
+        }
+
+        /// <summary>
+        /// 解除綁定 (access token 將失效)
+        /// </summary>
+        /// <param name="tokens">所有使用者的 access token</param>
+        public async Task RevokeAsync(IEnumerable<string> tokens)
+        {
+            List<Task> tasks = new List<Task>();
+            foreach (var t in tokens)
+            {
+                tasks.Add(RevokeAsync(t));
+            }
+            await Task.WhenAll(tasks);
         }
     }
 }
