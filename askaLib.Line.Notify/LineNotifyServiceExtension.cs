@@ -7,7 +7,7 @@ namespace askaLib.Line.Notify
 {
     public static class LineNotifyServiceExtension
     {
-        public static void AddLineNotifyService(this IServiceCollection services, LineNotifySetting setting)
+        public static IServiceCollection AddLineNotifyService(this IServiceCollection services, LineNotifySetting setting)
         {
             if (services == null) throw new ArgumentNullException(nameof(services));
 
@@ -18,6 +18,8 @@ namespace askaLib.Line.Notify
                 new LineNotifyService(
                     x.GetService<IHttpClientFactory>(),
                     setting));
+
+            return services;
         }
     }
 }
